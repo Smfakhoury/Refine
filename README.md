@@ -1,12 +1,12 @@
-# Refine: Bounded Refinement Checking for Inferred Specifications
+# Refine: Bounded Refinement Checking for Inferred C++ Specifications
 
 `refine` takes two sets of pre/postconditions for the same function and checks whether they are logically equivalent, or which direction of implication holds. It uses bounded model checkers (ESBMC or CBMC) to verify the implications.
 
-## When to use this
+## When to use this tool
 
 - Comparing inferred specifications against ground-truth specifications
 - Validating that a refactored contract is equivalent to the original
-- Checking if one spec refines another (weaker precondition, stronger postcondition)
+- Checking if any spec refines another (weaker precondition, stronger postcondition)
 
 ## Installation
 
@@ -152,44 +152,19 @@ refine/
 ### How it works
 
 1. **Parse input** — Load function signature + two spec sets from JSON or CLI args
-2. **Preprocess** — Normalize expressions, map `result` → `__ret`, extract lambdas (CBMC only)
-3. **Generate harnesses** — For each implication direction, emit a self-contained C++ file with STL stubs, nondet variable declarations, `assume()` for antecedent, `assert()` for consequent
-4. **Run verifier** — Invoke ESBMC (Docker) or CBMC (native) on each harness
+2. **Preprocess** — Normalize expressions, extract lambdas (CBMC only)
+3. **Generate harnesses** — For each implication direction, emit a self-contained C++ file with STL stubs, nondet variable declarations, assumptions, and assertions
+4. **Run verifier** — Invoke ESBMC or CBMC on each harness
 5. **Interpret results** — Map verifier output to verdicts, check for vacuity
 6. **Report** — Emit structured JSON with directional results + domain aliases
 
-### Pre-state snapshots
-
-Postconditions referencing `old_*` variables (e.g., `old_size`) are automatically bound to pre-state values before assumptions are applied. For example, `old_size` is bound to the first vector parameter's `.size()`.
-
-## Adapters
-
-The `adapters/` directory contains tool-specific converters that produce `refine` JSON input:
-
-- **`deeptest_formalspec.py`** — Extracts specs from a DeepTest specifications database and FormalSpecCpp ground-truth files, producing comparison JSON files.
-
-```bash
-# Single task
-python adapters/deeptest_formalspec.py single \
-  --db .deeptest/analysis/specifications.db \
-  --gt-dir FormalSpecCpp-Dataset/FormalSpecCPP \
-  --nospec-dir FormalSpecCpp-Dataset/FormalSpecCPP-NoSpec \
-  --task task_id_101
-
-# Batch (all tasks)
-python adapters/deeptest_formalspec.py batch \
-  --db .deeptest/analysis/specifications.db \
-  --gt-dir FormalSpecCpp-Dataset/FormalSpecCPP \
-  --nospec-dir FormalSpecCpp-Dataset/FormalSpecCPP-NoSpec \
-  --out-dir batch_inputs/
-```
 
 ## Limitations
 
 - **Bounded verification**: Results are sound within the configured unwind/vector bounds, not universally. A `proved` verdict means "no counterexample within bounds."
 - **STL stubs**: Only `vector`, `pair`, and common algorithms are stubbed. Programs using `map`, `set`, `string`, etc. will get errors.
 - **Lambda support**: ESBMC handles lambdas natively. CBMC requires lambda extraction to named functions (automatic but imperfect).
-- **No execution model**: Specs are compared as pure logical predicates. The checker does not model actual function execution — it checks implication between spec expressions.
+- **No execution model**: Specs are compared as pure logical predicates. The checker does not model actual function execution  it checks implication between spec expressions.
 
 ## License
 

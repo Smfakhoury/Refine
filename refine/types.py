@@ -49,6 +49,10 @@ class ImplicationResult:
     witness: Optional[str] = None
     diagnostics: list[str] = field(default_factory=list)
     lambda_extracted: bool = False
+    # Structured counterexample: maps variable names to concrete values.
+    # Populated when verdict is REFUTED, enabling human review of
+    # which spec (left or right) is actually correct.
+    counterexample: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass

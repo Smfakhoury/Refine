@@ -12,7 +12,64 @@ import re
 from pathlib import Path
 from .types import FunctionSig, Param, CompareInput
 
-MAX_VEC_SIZE = 4
+DEFAULT_VEC_SIZE = 4
+
+
+def infer_bounds(inp: "CompareInput") -> dict:
+    """Infer appropriate verification bounds from spec expressions and signature.
+
+    Scans specs for explicit size constraints, index references, and
+    loop-like patterns to determine:
+      - vec_size: maximum vector size to explore
+      - unwind: loop unwinding depth
+
+    Returns dict with 'vec_size' and 'unwind' keys.
+    """
+    all_text = " ".join(
+        inp.left.preconditions + inp.left.postconditions
+        + inp.right.preconditions + inp.right.postconditions
+    )
+
+    # --- Vector size inference ---
+    vec_size = DEFAULT_VEC_SIZE
+
+    # Explicit size constraints: a.size() == N, a.size() <= N, a.size() >= N
+    size_literals = re.findall(
+        r'\.size\(\)\s*(?:==|<=|<|>=|>)\s*(\d+)', all_text
+    )
+    if size_literals:
+        max_mentioned = max(int(n) for n in size_literals)
+        # Need at least max_mentioned + 1 to explore the boundary
+        vec_size = max(vec_size, min(max_mentioned + 1, 20))
+
+    # Index access: a[N] where N is a literal
+    index_literals = re.findall(r'\[\s*(\d+)\s*\]', all_text)
+    if index_literals:
+        max_idx = max(int(n) for n in index_literals)
+        vec_size = max(vec_size, min(max_idx + 2, 20))
+
+    # "n <= a.size()" pattern where n is a param
+    param_names = {p.name for p in inp.function.params}
+    for pname in param_names:
+        if re.search(rf'\b{re.escape(pname)}\s*<=?\s*\w+\.size\(\)', all_text):
+            # The param could be up to size; if specs don't bound it, use 8
+            vec_size = max(vec_size, 8)
+
+    # --- Unwind inference ---
+    # Unwind should be >= vec_size + 2 for loop-over-vector patterns
+    unwind = max(10, vec_size + 2)
+
+    # Explicit loop bounds in specs (uncommon but possible)
+    for_bounds = re.findall(r'(?:i|j|k)\s*<\s*(\d+)', all_text)
+    if for_bounds:
+        max_loop = max(int(n) for n in for_bounds)
+        unwind = max(unwind, max_loop + 2)
+
+    # Cap at sane limits for bounded model checking
+    vec_size = min(vec_size, 20)
+    unwind = min(unwind, 30)
+
+    return {"vec_size": vec_size, "unwind": unwind}
 
 # Verifier-specific intrinsics
 _INTRINSICS = {
@@ -51,22 +108,22 @@ def _type_category(ptype: str) -> str:
     return 'int'
 
 
-def _nondet_decl(name: str, cat: str, verifier: str = "cbmc") -> str:
+def _nondet_decl(name: str, cat: str, verifier: str = "cbmc", vec_size: int = DEFAULT_VEC_SIZE) -> str:
     """Generate a nondet variable declaration with bounded constraints."""
     assume_fn = _INTRINSICS.get(verifier, _INTRINSICS["cbmc"])["assume"]
     if cat in ('vec_int', 'vec_vec_int'):
         return (
-            f"  int {name}_data_arr[{MAX_VEC_SIZE + 1}];\n"
+            f"  int {name}_data_arr[{vec_size + 1}];\n"
             f"  std::vector<int> {name};\n"
             f"  {name}._data = {name}_data_arr;\n"
-            f"  {assume_fn}({name}._size <= {MAX_VEC_SIZE});\n"
+            f"  {assume_fn}({name}._size <= {vec_size});\n"
         )
     if cat == 'vec_double':
         return (
-            f"  double {name}_data_arr[{MAX_VEC_SIZE + 1}];\n"
+            f"  double {name}_data_arr[{vec_size + 1}];\n"
             f"  std::vector<double> {name};\n"
             f"  {name}._data = {name}_data_arr;\n"
-            f"  {assume_fn}({name}._size <= {MAX_VEC_SIZE});\n"
+            f"  {assume_fn}({name}._size <= {vec_size});\n"
         )
     ctype_map = {
         'pair_int': 'std::pair<int,int>',
@@ -279,6 +336,7 @@ def build_implication_harness(
     helper_funcs: list[str],
     harness_label: str,
     verifier: str = "cbmc",
+    vec_size: int = DEFAULT_VEC_SIZE,
 ) -> str:
     """Build a harness for checking an implication.
 
@@ -302,10 +360,10 @@ def build_implication_harness(
         for p in func.params:
             cat = _type_category(p.type)
             if cat in ('vec_int', 'vec_vec_int'):
-                lines.append(f"int _g_{p.name}_data[{MAX_VEC_SIZE + 1}];")
+                lines.append(f"int _g_{p.name}_data[{vec_size + 1}];")
                 lines.append(f"std::vector<int> _g_{p.name};")
             elif cat == 'vec_double':
-                lines.append(f"double _g_{p.name}_data[{MAX_VEC_SIZE + 1}];")
+                lines.append(f"double _g_{p.name}_data[{vec_size + 1}];")
                 lines.append(f"std::vector<double> _g_{p.name};")
             elif cat in ('int', 'unsigned_int', 'bool', 'double', 'char'):
                 ctype = {'int': 'int', 'unsigned_int': 'unsigned int',
@@ -315,7 +373,7 @@ def build_implication_harness(
     ret_cat = _type_category(func.return_type)
     if verifier != "esbmc" and ret_cat != 'void':
         if ret_cat in ('vec_int', 'vec_vec_int'):
-            lines.append(f"int _g___ret_data[{MAX_VEC_SIZE + 1}];")
+            lines.append(f"int _g___ret_data[{vec_size + 1}];")
             lines.append(f"std::vector<int> _g___ret;")
         elif ret_cat in ('int', 'unsigned_int', 'bool', 'double'):
             ctype = {'int': 'int', 'unsigned_int': 'unsigned int',
@@ -331,11 +389,11 @@ def build_implication_harness(
 
     # Nondet parameters
     for p in func.params:
-        lines.append(_nondet_decl(p.name, _type_category(p.type), verifier))
+        lines.append(_nondet_decl(p.name, _type_category(p.type), verifier, vec_size))
 
     # Nondet return value
     if ret_cat != 'void':
-        lines.append(_nondet_decl('__ret', ret_cat, verifier))
+        lines.append(_nondet_decl('__ret', ret_cat, verifier, vec_size))
 
     # Local variable declarations (skip 'result' — it's aliased to __ret)
     seen_locals = set()
@@ -403,6 +461,7 @@ def build_vacuity_harness(
     assume_post: list[str],
     helper_funcs: list[str],
     verifier: str = "cbmc",
+    vec_size: int = DEFAULT_VEC_SIZE,
 ) -> str:
     """Build a vacuity harness: assume(pre) ∧ assume(post) → assert(false).
 
@@ -411,5 +470,5 @@ def build_vacuity_harness(
     """
     return build_implication_harness(
         inp, assume_pre, assume_post, ["false"], helper_funcs, "vacuity",
-        verifier=verifier,
+        verifier=verifier, vec_size=vec_size,
     )

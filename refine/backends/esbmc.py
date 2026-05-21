@@ -1,5 +1,6 @@
 """ESBMC verifier backend (via Docker)."""
 
+import re
 import subprocess
 from pathlib import Path
 from ..types import Verdict
@@ -62,7 +63,76 @@ class ESBMCBackend(VerifierBackend):
         if "VERIFICATION SUCCESSFUL" in output:
             return Verdict.PROVED, None
         if "VERIFICATION FAILED" in output:
-            lines = [l for l in output.split('\n')
-                     if 'Violated property' in l or 'FAILURE' in l]
-            return Verdict.REFUTED, '; '.join(lines[:5])
+            witness = ESBMCBackend._extract_counterexample(output)
+            return Verdict.REFUTED, witness
         return Verdict.UNKNOWN, output[-300:]
+
+    @staticmethod
+    def _extract_counterexample(output: str) -> str:
+        """Extract a human-readable counterexample from ESBMC output.
+
+        Parses the [Counterexample] trace to extract variable assignments
+        in main(), filtering out internal/pointer plumbing.
+        """
+        lines = output.split('\n')
+
+        # Find the counterexample section
+        cex_start = None
+        for i, line in enumerate(lines):
+            if '[Counterexample]' in line:
+                cex_start = i + 1
+                break
+
+        if cex_start is None:
+            return "Violated property (no counterexample trace)"
+
+        # Parse State entries: variable = value
+        assignments = {}
+        violated_prop = None
+        skip_internals = {'_data_arr'}
+
+        i = cex_start
+        while i < len(lines):
+            line = lines[i].strip()
+
+            # Violated property block
+            if line == 'Violated property:':
+                # Next few lines have file/line and the assertion text
+                prop_lines = []
+                for j in range(i + 1, min(i + 4, len(lines))):
+                    l = lines[j].strip()
+                    if l.startswith('assertion '):
+                        violated_prop = l[len('assertion '):]
+                    elif l and not l.startswith('file ') and not l.startswith('return_value'):
+                        prop_lines.append(l)
+                break
+
+            # State assignment line: varname = value
+            if line.startswith('State ') and 'function main' in line:
+                # Look for the assignment on the line after the separator
+                if i + 2 < len(lines) and '----' in lines[i + 1]:
+                    assign_line = lines[i + 2].strip()
+                    m = re.match(r'(\w[\w.]*)\s*=\s*(.+)', assign_line)
+                    if m:
+                        var = m.group(1)
+                        val = m.group(2).strip()
+                        # Skip internal plumbing
+                        if not any(s in var for s in skip_internals):
+                            # Clean up: strip bit patterns like "(00000...)"
+                            val = re.sub(r'\s*\([01 ]+\)\s*$', '', val)
+                            # For struct assignments, simplify pointer internals
+                            if 'pointer_object=nil' in val:
+                                continue
+                            assignments[var] = val
+            i += 1
+
+        # Build readable output
+        parts = []
+        if assignments:
+            parts.append("Counterexample:")
+            for var, val in assignments.items():
+                parts.append(f"  {var} = {val}")
+        if violated_prop:
+            parts.append(f"Violated: {violated_prop}")
+
+        return '\n'.join(parts) if parts else "Violated property (could not parse trace)"

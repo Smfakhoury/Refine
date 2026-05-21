@@ -56,6 +56,8 @@ def _result_to_dict(r: CompareResult) -> dict:
             d["lambda_extracted"] = True
         if ir.witness:
             d["witness"] = ir.witness
+        if ir.counterexample:
+            d["counterexample"] = ir.counterexample
         if ir.diagnostics:
             d["diagnostics"] = ir.diagnostics
         return d
@@ -132,6 +134,9 @@ def cmd_compare(args):
         timeout=args.timeout,
         reference=args.reference,
         emit_harness=args.emit_harness,
+        auto_bounds=args.auto_bounds,
+        vec_size=args.vec_size,
+        validate_bounds=args.validate_bounds,
     )
 
     out = _result_to_dict(result)
@@ -165,6 +170,9 @@ def cmd_quick(args):
         timeout=args.timeout,
         reference=args.reference,
         emit_harness=args.emit_harness,
+        auto_bounds=args.auto_bounds,
+        vec_size=args.vec_size,
+        validate_bounds=args.validate_bounds,
     )
 
     out = _result_to_dict(result)
@@ -198,6 +206,9 @@ def cmd_batch(args):
             timeout=args.timeout,
             reference=args.reference,
             emit_harness=args.emit_harness,
+            auto_bounds=args.auto_bounds,
+            vec_size=args.vec_size,
+            validate_bounds=args.validate_bounds,
         )
 
         summary["total"] += 1
@@ -309,6 +320,12 @@ def _add_common_args(p):
                    help="Loop unwinding bound (default: 10)")
     p.add_argument("--emit-harness", action="store_true",
                    help="Keep generated harness .cpp files")
+    p.add_argument("--auto-bounds", action="store_true",
+                   help="Infer vec_size and unwind from spec text")
+    p.add_argument("--vec-size", type=int, default=None,
+                   help="Explicit vector size bound (overrides --auto-bounds)")
+    p.add_argument("--validate-bounds", action="store_true",
+                   help="Re-run PROVED results at 2× bounds to check stability")
     p.add_argument("--docker-path", default="docker",
                    help="Path to docker binary (ESBMC only)")
     p.add_argument("--esbmc-image", default="esbmc:latest",
