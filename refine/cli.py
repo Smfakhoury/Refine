@@ -30,6 +30,8 @@ from pathlib import Path
 
 from .types import CompareInput, CompareResult, FunctionSig, SpecSet, Param, Verdict
 from .core import compare
+from .interpret import interpret_result
+from .backends import BackendUnavailableError
 from .backends.cbmc import CBMCBackend
 from .backends.esbmc import ESBMCBackend
 
@@ -140,6 +142,12 @@ def cmd_compare(args):
     )
 
     out = _result_to_dict(result)
+
+    if getattr(args, 'interpret', False):
+        interps = interpret_result(inp, result, args.reference)
+        if interps:
+            out["interpretations"] = interps
+
     print(json.dumps(out, indent=2))
 
     if args.out:
@@ -176,6 +184,12 @@ def cmd_quick(args):
     )
 
     out = _result_to_dict(result)
+
+    if getattr(args, 'interpret', False):
+        interps = interpret_result(inp, result, args.reference)
+        if interps:
+            out["interpretations"] = interps
+
     print(json.dumps(out, indent=2))
 
 
@@ -236,6 +250,12 @@ def cmd_batch(args):
 
         entry = {"file": fpath.stem, "function": inp.function.name}
         entry.update(_result_to_dict(result))
+
+        if getattr(args, 'interpret', False) and not result.equivalent:
+            interps = interpret_result(inp, result, args.reference)
+            if interps:
+                entry["interpretations"] = interps
+
         all_results.append(entry)
 
     print(f"\n{'='*60}")
@@ -326,6 +346,8 @@ def _add_common_args(p):
                    help="Explicit vector size bound (overrides --auto-bounds)")
     p.add_argument("--validate-bounds", action="store_true",
                    help="Re-run PROVED results at 2× bounds to check stability")
+    p.add_argument("--interpret", action="store_true",
+                   help="Add NL interpretation of counterexamples via LLM (requires gh CLI)")
     p.add_argument("--docker-path", default="docker",
                    help="Path to docker binary (ESBMC only)")
     p.add_argument("--esbmc-image", default="esbmc:latest",
@@ -378,7 +400,11 @@ def main():
     p_self.set_defaults(func=cmd_selftest)
 
     args = parser.parse_args()
-    args.func(args)
+    try:
+        args.func(args)
+    except BackendUnavailableError as e:
+        print(json.dumps({"error": str(e)}), file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

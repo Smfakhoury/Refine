@@ -1,9 +1,10 @@
 """CBMC verifier backend."""
 
+import shutil
 import subprocess
 from pathlib import Path
 from ..types import Verdict
-from . import VerifierBackend
+from . import BackendUnavailableError, VerifierBackend
 
 
 class CBMCBackend(VerifierBackend):
@@ -14,6 +15,12 @@ class CBMCBackend(VerifierBackend):
 
     def name(self) -> str:
         return "cbmc"
+
+    def preflight(self) -> None:
+        if shutil.which("cbmc") is None:
+            raise BackendUnavailableError(
+                "cbmc not found on PATH. Install CBMC or use --backend esbmc."
+            )
 
     def check_harness(self, harness_path: Path, timeout: int = 60) -> tuple[Verdict, str | None]:
         cmd = [

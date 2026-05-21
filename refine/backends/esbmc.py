@@ -1,10 +1,11 @@
 """ESBMC verifier backend (via Docker)."""
 
 import re
+import shutil
 import subprocess
 from pathlib import Path
 from ..types import Verdict
-from . import VerifierBackend
+from . import BackendUnavailableError, VerifierBackend
 
 
 class ESBMCBackend(VerifierBackend):
@@ -22,6 +23,14 @@ class ESBMCBackend(VerifierBackend):
 
     def name(self) -> str:
         return "esbmc"
+
+    def preflight(self) -> None:
+        resolved = shutil.which(self._docker_path)
+        if resolved is None:
+            raise BackendUnavailableError(
+                f"docker not found at '{self._docker_path}'. "
+                f"Install Docker or pass --docker-path."
+            )
 
     def check_harness(
         self, harness_path: Path, timeout: int = 60

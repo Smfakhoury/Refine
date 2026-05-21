@@ -5,6 +5,10 @@ from pathlib import Path
 from ..types import Verdict
 
 
+class BackendUnavailableError(RuntimeError):
+    """Raised when a verifier backend's prerequisites are not met."""
+
+
 class VerifierBackend(ABC):
     """Backend interface for bounded model checkers."""
 
@@ -12,6 +16,13 @@ class VerifierBackend(ABC):
     def name(self) -> str:
         """Return the verifier name (e.g. 'cbmc', 'esbmc')."""
         ...
+
+    def preflight(self) -> None:
+        """Check that all prerequisites are met.
+
+        Raises BackendUnavailableError if not.  The default implementation
+        is a no-op; backends override to verify tool availability.
+        """
 
     @abstractmethod
     def check_harness(self, harness_path: Path, timeout: int = 60) -> tuple[Verdict, str | None]:

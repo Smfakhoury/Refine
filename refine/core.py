@@ -14,7 +14,7 @@ from .harness import (
     _preprocess_expr, _map_result_alias, _extract_lambdas,
     infer_bounds, DEFAULT_VEC_SIZE,
 )
-from .backends import VerifierBackend
+from .backends import BackendUnavailableError, VerifierBackend
 
 # Patterns that indicate unsupported constructs (conservative preflight).
 _UNSUPPORTED_PATTERNS = [
@@ -240,6 +240,8 @@ def compare(
         CompareResult with directional verdicts and optional
         completeness/soundness aliases.
     """
+    backend.preflight()
+
     if work_dir is None:
         work_dir = Path("/tmp/refine_harnesses") / inp.function.name
     work_dir.mkdir(parents=True, exist_ok=True)

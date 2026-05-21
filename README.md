@@ -1,12 +1,13 @@
 # Refine: Bounded Refinement Checking for Inferred C++ Specifications
 
-`refine` takes two sets of pre/postconditions for the same function and checks whether they are logically equivalent, or which direction of implication holds. It uses bounded model checkers (ESBMC or CBMC) to verify the implications.
+`refine` takes two sets of pre/postconditions for the same function and checks whether they are logically equivalent, or which direction of implication holds. It uses bounded model checkers (ESBMC or CBMC) to verify the implications, extracts concrete counterexamples when checks fail, and optionally generates plain-English explanations of failures via the Copilot CLI.
 
 ## When to use this tool
 
 - Comparing inferred specifications against ground-truth specifications
 - Validating that a refactored contract is equivalent to the original
 - Checking if any spec refines another (weaker precondition, stronger postcondition)
+- Auditing LLM-inferred specs with concrete counterexamples and NL explanations
 
 ## Installation
 
@@ -14,6 +15,9 @@ Requires Python ≥ 3.10 and one of:
 
 - **ESBMC** (default, recommended): Docker with an `esbmc:latest` image
 - **CBMC**: Native install via Homebrew (`brew install cbmc`) or [diffblue/cbmc](https://github.com/diffblue/cbmc)
+
+Optional:
+- **Copilot CLI** (`copilot` on PATH): Required for `--interpret` (NL explanations of counterexamples)
 
 No Python dependencies beyond the standard library.
 
@@ -32,6 +36,9 @@ python -m refine compare specs.json
 
 # Batch compare a directory of JSON files
 python -m refine batch specs_dir/ --out results.json
+
+# With NL interpretation of counterexamples
+python -m refine compare specs.json --interpret
 ```
 
 ## Input format
@@ -119,12 +126,19 @@ Every `proved` result is automatically checked for vacuity: if the assumptions a
 python -m refine compare INPUT.json [options]
 python -m refine quick --signature SIG [options]
 python -m refine batch INPUT_DIR/ [options]
+python -m refine selftest
 
 Options:
   --backend {esbmc,cbmc}     Verifier backend (default: esbmc)
   --reference {left,right}   Which side is ground truth (default: left)
   --timeout SECONDS          Per-query timeout (default: 60)
   --unwind N                 Loop unwinding bound (default: 10)
+  --vec-size N               Maximum vector size for nondet vectors (default: 4)
+  --auto-bounds              Infer bounds from spec text (e.g. size constraints)
+  --validate-bounds          Re-run proved results at 2× bounds; downgrade to
+                             unknown if the verdict flips
+  --interpret                Generate NL explanations of counterexamples via
+                             the Copilot CLI
   --emit-harness             Keep generated .cpp harness files
   --work-dir DIR             Directory for harness files
   --out FILE                 Write JSON results to file
@@ -132,18 +146,80 @@ Options:
   --esbmc-image IMAGE        ESBMC Docker image (default: esbmc:latest)
 ```
 
+## Example output
+
+Running `refine` on `AppendArrayToSeq` — ground-truth (left) vs. LLM-inferred (right) specs — with `--interpret`:
+
+```bash
+python -m refine compare task_id_106.json --interpret
+```
+
+```json
+{
+  "equivalent": false,
+  "pre_soundness": {
+    "verdict": "refuted",
+    "counterexample": {
+      "s._data": "{ ._data=&s_data_arr[0], ._size=4 }",
+      "a._data": "{ ._data=&a_data_arr[0], ._size=0 }",
+      "__violated": "!a.empty()"
+    }
+  },
+  "pre_completeness": {
+    "verdict": "proved",
+    "diagnostics": ["No right preconditions — trivially implied"]
+  },
+  "post_soundness": {
+    "verdict": "refuted",
+    "counterexample": {
+      "s._data": "{ ._data=&s_data_arr[0], ._size=4 }",
+      "a._data": "{ ._data=&a_data_arr[0], ._size=4 }",
+      "r": "{ ._data=0, ._size=8 }",
+      "__violated": "std::equal(r.begin() + (s.size()), r.end(), a.begin())"
+    }
+  },
+  "post_completeness": {
+    "verdict": "refuted",
+    "counterexample": {
+      "s._data": "{ ._data=&s_data_arr[0], ._size=2 }",
+      "a._data": "{ ._data=&a_data_arr[0], ._size=2 }",
+      "r": "{ ._data=0, ._size=4 }",
+      "__violated": "r[s.size() + j] == a[j]"
+    }
+  },
+  "interpretations": {
+    "post_soundness": "The counterexample shows that when s and a each have size 4,
+      the ground-truth postconditions are satisfied for a return vector of size 8,
+      yet std::equal over the second half fails — meaning the candidate's use of
+      std::equal is too strong, imposing a stricter equality check than the
+      ground-truth's per-element index specifications.",
+    "post_completeness": "The candidate postcondition r[s.size() + j] == a[j] is
+      too strong: it asserts element-wise equality for an index j that is left
+      unconstrained, so the model checker picks j outside the valid range.",
+    "pre_soundness": "The counterexample passes an empty array (a._size=0), which
+      is a valid input. The candidate precondition !a.empty() is too strong: it
+      rejects empty arrays when the ground truth imposes no such restriction."
+  }
+}
+```
+
+The `interpretations` field (enabled by `--interpret`) provides plain-English summaries of each refuted check, explaining what the counterexample demonstrates and whether the candidate spec is too strong, too weak, or incomparable.
+
 ## Architecture
 
 ```
 refine/
 ├── types.py          # Data classes: CompareInput, CompareResult, Verdict, ...
 ├── harness.py        # Harness generation (STL stubs, nondet vars, assume/assert)
+│                     # Also: infer_bounds() for auto-bounds from spec text
 ├── core.py           # Orchestration: prep specs → build harness → run verifier
-├── cli.py            # CLI entry point (compare, quick, batch)
+│                     # Also: validate_bounds (iterative deepening at 2× bounds)
+├── interpret.py      # NL interpretation of counterexamples via Copilot CLI
+├── cli.py            # CLI entry point (compare, quick, batch, selftest)
 ├── backends/
 │   ├── __init__.py   # VerifierBackend ABC
 │   ├── cbmc.py       # CBMC backend (native)
-│   └── esbmc.py      # ESBMC backend (via Docker)
+│   └── esbmc.py      # ESBMC backend (via Docker), counterexample extraction
 └── stubs/
     ├── cbmc_stl.hpp  # Minimal STL stubs for CBMC
     └── esbmc_stl.hpp # Minimal STL stubs for ESBMC
@@ -153,18 +229,22 @@ refine/
 
 1. **Parse input** — Load function signature + two spec sets from JSON or CLI args
 2. **Preprocess** — Normalize expressions, extract lambdas (CBMC only)
-3. **Generate harnesses** — For each implication direction, emit a self-contained C++ file with STL stubs, nondet variable declarations, assumptions, and assertions
-4. **Run verifier** — Invoke ESBMC or CBMC on each harness
-5. **Interpret results** — Map verifier output to verdicts, check for vacuity
-6. **Report** — Emit structured JSON with directional results + domain aliases
+3. **Infer bounds** (optional) — Scan spec text for size constraints to set vector/unwind bounds
+4. **Generate harnesses** — For each implication direction, emit a self-contained C++ file with STL stubs, nondet variable declarations, assumptions, and assertions
+5. **Run verifier** — Invoke ESBMC or CBMC on each harness
+6. **Interpret results** — Map verifier output to verdicts, check for vacuity, extract counterexamples
+7. **Validate bounds** (optional) — Re-run proved checks at 2× bounds; downgrade if verdicts flip
+8. **NL interpretation** (optional) — Send counterexamples to the Copilot CLI for plain-English summaries
+9. **Report** — Emit structured JSON with directional results, domain aliases, witnesses, and interpretations
 
 
 ## Limitations
 
-- **Bounded verification**: Results are sound within the configured unwind/vector bounds, not universally. A `proved` verdict means "no counterexample within bounds."
-- **STL stubs**: Only `vector`, `pair`, and common algorithms are stubbed. Programs using `map`, `set`, `string`, etc. will get errors.
+- **Bounded verification**: Results are sound within the configured unwind/vector bounds, not universally. A `proved` verdict means "no counterexample within bounds." Use `--validate-bounds` to detect instability.
+- **STL stubs**: Only `vector`, `pair`, and common algorithms are stubbed. Programs using `map`, `set`, `string`, etc. will get `unsupported` verdicts.
 - **Lambda support**: ESBMC handles lambdas natively. CBMC requires lambda extraction to named functions (automatic but imperfect).
-- **No execution model**: Specs are compared as pure logical predicates. The checker does not model actual function execution  it checks implication between spec expressions.
+- **No execution model**: Specs are compared as pure logical predicates. The checker does not model actual function execution — it checks implication between spec expressions.
+- **NL interpretation**: Requires the `copilot` CLI on PATH with valid authentication. Quality depends on the LLM's understanding of formal verification concepts.
 
 ## License
 
