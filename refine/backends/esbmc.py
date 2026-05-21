@@ -118,12 +118,12 @@ class ESBMCBackend(VerifierBackend):
                         val = m.group(2).strip()
                         # Skip internal plumbing
                         if not any(s in var for s in skip_internals):
-                            # Clean up: strip bit patterns like "(00000...)"
-                            val = re.sub(r'\s*\([01 ]+\)\s*$', '', val)
-                            # For struct assignments, simplify pointer internals
-                            if 'pointer_object=nil' in val:
-                                continue
-                            assignments[var] = val
+                            # Clean up: strip bit patterns like "(00000000 ...)"
+                            if len(val) < 500:
+                                val = re.sub(r'\s*\([01]+(?:\s[01]+)*\)\s*$', '', val)
+                            # Skip struct assignments with nil pointers
+                            if 'pointer_object=nil' not in val:
+                                assignments[var] = val
             i += 1
 
         # Build readable output
