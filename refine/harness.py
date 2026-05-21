@@ -112,10 +112,7 @@ def _map_result_alias(expr: str, params: list[Param]) -> str:
     return e
 
 
-_LAMBDA_CTR = 0
-
-
-def _extract_lambdas(expr: str, task_tag: str) -> tuple[str, list[str]]:
+def _extract_lambdas(expr: str, task_tag: str, counter: list[int] | None = None) -> tuple[str, list[str]]:
     """Extract C++ lambdas into standalone helper functions for CBMC.
 
     CBMC's parser cannot handle lambda syntax. This converts:
@@ -123,8 +120,14 @@ def _extract_lambdas(expr: str, task_tag: str) -> tuple[str, list[str]]:
     and replaces the lambda in the expression with the function name.
 
     Captured variables ([&]) are declared as globals before the helpers.
+
+    Args:
+        counter: Mutable list[int] with one element, used as a monotonic
+                 counter for deterministic naming. Pass the same list across
+                 all calls within a single comparison.
     """
-    global _LAMBDA_CTR
+    if counter is None:
+        counter = [0]
     helpers = []
     result = expr
 
@@ -141,8 +144,8 @@ def _extract_lambdas(expr: str, task_tag: str) -> tuple[str, list[str]]:
         rest = result[after_brace:].lstrip()
         invoked = rest.startswith('()')
 
-        _LAMBDA_CTR += 1
-        name = f"__lambda_{task_tag}_{_LAMBDA_CTR}"
+        counter[0] += 1
+        name = f"__lambda_{task_tag}_{counter[0]}"
         helpers.append(f"bool {name}() {{\n{body}\n}}\n")
         end_pos = after_brace + (rest.index('()') + 2 if invoked else 0)
         result = result[:m.start()] + f"{name}()" + result[end_pos:]
@@ -158,8 +161,8 @@ def _extract_lambdas(expr: str, task_tag: str) -> tuple[str, list[str]]:
         if body is None:
             break
 
-        _LAMBDA_CTR += 1
-        name = f"__pred_{task_tag}_{_LAMBDA_CTR}"
+        counter[0] += 1
+        name = f"__pred_{task_tag}_{counter[0]}"
         helpers.append(f"bool {name}({params_str}) {{\n{body}\n}}\n")
         end_pos = brace_start + len(body) + 2
         result = result[:m.start()] + name + result[end_pos:]
@@ -205,6 +208,7 @@ def _auto_declare_locals(
         'data', 'fabs', 'floor', 'ceil', 'round', 'log', 'log2',
         'auto', 'long', 'short', 'signed', 'sizeof', 'result',
         'ok', 'v', 'x', 'idx', 'nullptr', 'decltype', 'find_if',
+        'rbegin', 'rend', 'set', 'insert', 'swap',
     }
     for h in helper_funcs:
         m = re.match(r'\w+\s+(\w+)\s*\(', h)
@@ -334,10 +338,18 @@ def build_implication_harness(
         lines.append(_nondet_decl('__ret', ret_cat, verifier))
 
     # Local variable declarations (skip 'result' — it's aliased to __ret)
+    seen_locals = set()
     for lv in func.local_vars:
         if lv.name == 'result':
             continue
-        lines.append(f"  {lv.type} {lv.name};")
+        if lv.name in seen_locals:
+            continue
+        seen_locals.add(lv.name)
+        # Strip const qualifier — nondet vars can't be default-initialized as const
+        lv_type = re.sub(r'\bconst\b', '', lv.type).strip()
+        if not lv_type:
+            lv_type = 'int'
+        lines.append(f"  {lv_type} {lv.name};")
 
     # Common loop vars
     declared = set(p.name for p in func.params) | {'__ret', 'result', 'true', 'false'}

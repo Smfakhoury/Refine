@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "description": "Contradictory preconditions — must be vacuous, not proved",
+  "expected": {
+    "post_soundness": "vacuous",
+    "post_completeness": "vacuous",
+    "equivalent": false
+  },
+  "function": {
+    "name": "impossible",
+    "return_type": "int",
+    "params": [{"name": "x", "type": "int"}],
+    "local_vars": []
+  },
+  "left": {
+    "label": "reference",
+    "preconditions": ["x > 10", "x < 5"],
+    "postconditions": ["__ret == 42"]
+  },
+  "right": {
+    "label": "candidate",
+    "preconditions": ["x > 10", "x < 5"],
+    "postconditions": ["__ret == 99"]
+  },
+  "helpers": [],
+  "options": {}
+}

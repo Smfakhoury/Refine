@@ -11,6 +11,7 @@ class Verdict(Enum):
     UNKNOWN = "unknown"
     VACUOUS = "vacuous"
     ERROR = "error"
+    UNSUPPORTED = "unsupported"
     TIMEOUT = "timeout"
 
 
@@ -47,6 +48,7 @@ class ImplicationResult:
     vacuous: bool = False
     witness: Optional[str] = None
     diagnostics: list[str] = field(default_factory=list)
+    lambda_extracted: bool = False
 
 
 @dataclass
@@ -82,6 +84,11 @@ class CompareResult:
     post_completeness: Optional[ImplicationResult] = None
     pre_soundness: Optional[ImplicationResult] = None
     pre_completeness: Optional[ImplicationResult] = None
+
+    # Diagnostic: postcondition checks under GT precondition only.
+    # Disentangles postcondition quality from precondition quality.
+    post_sound_under_gt_pre: Optional[ImplicationResult] = None
+    post_complete_under_gt_pre: Optional[ImplicationResult] = None
 
     verifier: str = ""
     bounds: dict = field(default_factory=dict)

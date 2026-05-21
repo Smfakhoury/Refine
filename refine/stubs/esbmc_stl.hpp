@@ -8,29 +8,37 @@
 
 extern void __VERIFIER_assume(int);
 
+typedef unsigned long size_t;
+
 namespace std {
+
+typedef ::size_t size_t;
 
 template<typename T>
 class vector {
 public:
     T* _data;
-    unsigned int _size;
-    unsigned int size() const { return _size; }
+    unsigned long _size;
+    unsigned long size() const { return _size; }
     bool empty() const { return _size == 0; }
-    T& operator[](unsigned int i) { return _data[i]; }
-    const T& operator[](unsigned int i) const { return _data[i]; }
-    T& operator[](int i) { return _data[(unsigned int)i]; }
-    const T& operator[](int i) const { return _data[(unsigned int)i]; }
+    T& operator[](unsigned long i) { return _data[i]; }
+    const T& operator[](unsigned long i) const { return _data[i]; }
+    T* data() { return _data; }
+    const T* data() const { return _data; }
     T& front() { return _data[0]; }
     T& back() { return _data[_size > 0 ? _size - 1 : 0]; }
     const T& front() const { return _data[0]; }
     const T& back() const { return _data[_size > 0 ? _size - 1 : 0]; }
     void push_back(const T&) { }
-    void reserve(unsigned int) { }
+    void reserve(unsigned long) { }
     T* begin() { return _data; }
     T* end() { return _data + _size; }
     const T* begin() const { return _data; }
     const T* end() const { return _data + _size; }
+    T* rbegin() { return _data + (_size > 0 ? _size - 1 : 0); }
+    T* rend() { return _data - 1; }
+    const T* rbegin() const { return _data + (_size > 0 ? _size - 1 : 0); }
+    const T* rend() const { return _data - 1; }
 };
 
 template<typename T1, typename T2>
@@ -168,13 +176,61 @@ template<typename T>
 void swap(T& a, T& b) { T t = a; a = b; b = t; }
 
 template<typename T>
-struct numeric_limits {
-    static T min() { return T(); }
-    static T max() { return T(); }
-    static T epsilon() { return T(); }
+T max(const T& a, const T& b) { return a > b ? a : b; }
+
+template<typename T>
+T min(const T& a, const T& b) { return a < b ? a : b; }
+
+template<typename T>
+struct numeric_limits;
+
+template<>
+struct numeric_limits<int> {
+    static int min() { return -2147483647 - 1; }
+    static int max() { return 2147483647; }
+    static int epsilon() { return 0; }
 };
 
-typedef unsigned long size_t;
+template<>
+struct numeric_limits<unsigned int> {
+    static unsigned int min() { return 0; }
+    static unsigned int max() { return 4294967295u; }
+    static unsigned int epsilon() { return 0; }
+};
+
+template<>
+struct numeric_limits<long> {
+    static long min() { return -2147483647L - 1; }
+    static long max() { return 2147483647L; }
+    static long epsilon() { return 0; }
+};
+
+template<>
+struct numeric_limits<double> {
+    static double min() { return 2.2250738585072014e-308; }
+    static double max() { return 1.7976931348623158e+308; }
+    static double epsilon() { return 2.2204460492503131e-16; }
+};
+
+template<typename T>
+class set {
+public:
+    T* _data;
+    unsigned long _size;
+    unsigned long size() const { return _size; }
+    bool empty() const { return _size == 0; }
+    unsigned long count(const T& val) const {
+        for (unsigned long i = 0; i < _size; ++i)
+            if (_data[i] == val) return 1;
+        return 0;
+    }
+    T* begin() { return _data; }
+    T* end() { return _data + _size; }
+    const T* begin() const { return _data; }
+    const T* end() const { return _data + _size; }
+    void insert(const T&) { }
+};
+
 using nullptr_t = decltype(nullptr);
 
 } // namespace std

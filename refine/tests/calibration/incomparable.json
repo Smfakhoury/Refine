@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0",
+  "description": "Incomparable postconditions — neither direction proved",
+  "expected": {
+    "post_soundness": "refuted",
+    "post_completeness": "refuted",
+    "equivalent": false
+  },
+  "function": {
+    "name": "compute",
+    "return_type": "int",
+    "params": [
+      {"name": "a", "type": "int"},
+      {"name": "b", "type": "int"}
+    ],
+    "local_vars": []
+  },
+  "left": {
+    "label": "reference",
+    "preconditions": ["a > 0", "b > 0"],
+    "postconditions": ["__ret == a + b"]
+  },
+  "right": {
+    "label": "candidate",
+    "preconditions": ["a > 0", "b > 0"],
+    "postconditions": ["__ret == a * b"]
+  },
+  "helpers": [],
+  "options": {}
+}

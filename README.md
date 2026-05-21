@@ -1,4 +1,4 @@
-# Refine: Bounded Refinement Checking for Formal Specifications
+# Refine: Bounded Refinement Checking for Inferred Specifications
 
 `refine` takes two sets of pre/postconditions for the same function and checks whether they are logically equivalent, or which direction of implication holds. It uses bounded model checkers (ESBMC or CBMC) to verify the implications.
 

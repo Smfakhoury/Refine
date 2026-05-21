@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "description": "Specs use std::map — should be UNSUPPORTED, not ERROR",
+  "expected": {
+    "post_soundness": "unsupported",
+    "equivalent": false
+  },
+  "function": {
+    "name": "lookup",
+    "return_type": "int",
+    "params": [
+      {"name": "m", "type": "const std::map<int,int>&"},
+      {"name": "key", "type": "int"}
+    ],
+    "local_vars": []
+  },
+  "left": {
+    "label": "reference",
+    "preconditions": ["m.count(key) > 0"],
+    "postconditions": ["__ret == m.at(key)"]
+  },
+  "right": {
+    "label": "candidate",
+    "preconditions": [],
+    "postconditions": ["__ret >= 0"]
+  },
+  "helpers": [],
+  "options": {}
+}

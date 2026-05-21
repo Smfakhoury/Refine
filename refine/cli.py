@@ -52,6 +52,8 @@ def _result_to_dict(r: CompareResult) -> dict:
             "verdict": ir.verdict.value,
             "vacuous": ir.vacuous,
         }
+        if ir.lambda_extracted:
+            d["lambda_extracted"] = True
         if ir.witness:
             d["witness"] = ir.witness
         if ir.diagnostics:
@@ -77,6 +79,11 @@ def _result_to_dict(r: CompareResult) -> dict:
         out["post_completeness"] = impl_dict(r.post_completeness)
     if r.post_soundness is not None:
         out["post_soundness"] = impl_dict(r.post_soundness)
+    # GT-precondition-only diagnostics
+    if r.post_sound_under_gt_pre is not None:
+        out["post_sound_under_gt_pre"] = impl_dict(r.post_sound_under_gt_pre)
+    if r.post_complete_under_gt_pre is not None:
+        out["post_complete_under_gt_pre"] = impl_dict(r.post_complete_under_gt_pre)
     out["verifier"] = r.verifier
     out["bounds"] = r.bounds
     return out
@@ -175,8 +182,8 @@ def cmd_batch(args):
 
     backend = _make_backend(args)
     all_results = []
-    summary = {"total": 0, "equivalent": 0, "proved_both": 0,
-               "errors": 0, "timeouts": 0}
+    summary = {"total": 0, "equivalent": 0, "errors": 0,
+               "unsupported": 0, "vacuous": 0, "timeouts": 0}
 
     for i, fpath in enumerate(files):
         with open(fpath) as f:
@@ -196,12 +203,19 @@ def cmd_batch(args):
         summary["total"] += 1
         if result.equivalent:
             summary["equivalent"] += 1
-        if (result.left_implies_right.verdict in (Verdict.ERROR, Verdict.TIMEOUT)
-                or result.right_implies_left.verdict in (Verdict.ERROR, Verdict.TIMEOUT)):
-            if result.left_implies_right.verdict == Verdict.TIMEOUT:
-                summary["timeouts"] += 1
-            else:
-                summary["errors"] += 1
+
+        # Classify overall status with priority: UNSUPPORTED > ERROR > TIMEOUT > VACUOUS
+        all_checks = [result.left_implies_right, result.right_implies_left,
+                      result.pre_left_implies_right, result.pre_right_implies_left]
+        verdicts = {c.verdict for c in all_checks}
+        if Verdict.UNSUPPORTED in verdicts:
+            summary["unsupported"] += 1
+        elif Verdict.ERROR in verdicts:
+            summary["errors"] += 1
+        elif Verdict.TIMEOUT in verdicts:
+            summary["timeouts"] += 1
+        elif Verdict.VACUOUS in verdicts:
+            summary["vacuous"] += 1
 
         lr = result.left_implies_right.verdict.value
         rl = result.right_implies_left.verdict.value
@@ -215,12 +229,74 @@ def cmd_batch(args):
 
     print(f"\n{'='*60}")
     print(f"Total: {summary['total']}  Equivalent: {summary['equivalent']}  "
-          f"Errors: {summary['errors']}  Timeouts: {summary['timeouts']}")
+          f"Errors: {summary['errors']}  Unsupported: {summary['unsupported']}  "
+          f"Vacuous: {summary['vacuous']}  Timeouts: {summary['timeouts']}")
 
     if args.out:
         with open(args.out, 'w') as f:
             json.dump({"summary": summary, "results": all_results}, f, indent=2)
         print(f"Results written to {args.out}")
+
+
+def cmd_selftest(args):
+    """Run calibration tests to validate refine is producing correct verdicts."""
+    cal_dir = Path(__file__).parent / "tests" / "calibration"
+    if not cal_dir.exists():
+        print(f"Calibration directory not found: {cal_dir}", file=sys.stderr)
+        sys.exit(1)
+
+    files = sorted(cal_dir.glob("*.json"))
+    if not files:
+        print("No calibration files found", file=sys.stderr)
+        sys.exit(1)
+
+    backend = _make_backend(args)
+    passed = 0
+    failed = 0
+
+    for fpath in files:
+        with open(fpath) as f:
+            data = json.load(f)
+
+        expected = data.get("expected", {})
+        desc = data.get("description", fpath.stem)
+        inp = CompareInput.from_dict(data)
+
+        result = compare(
+            inp, backend, timeout=args.timeout, reference="left",
+        )
+
+        out = _result_to_dict(result)
+        failures = []
+
+        if "equivalent" in expected:
+            if result.equivalent != expected["equivalent"]:
+                failures.append(f"equivalent: got {result.equivalent}, expected {expected['equivalent']}")
+
+        for field_name, check_obj in [
+            ("post_soundness", result.post_soundness),
+            ("post_completeness", result.post_completeness),
+            ("pre_soundness", result.pre_soundness),
+            ("pre_completeness", result.pre_completeness),
+        ]:
+            if field_name in expected and check_obj is not None:
+                if check_obj.verdict.value != expected[field_name]:
+                    failures.append(
+                        f"{field_name}: got {check_obj.verdict.value}, "
+                        f"expected {expected[field_name]}"
+                    )
+
+        if failures:
+            failed += 1
+            print(f"  FAIL  {fpath.stem}: {desc}")
+            for f_msg in failures:
+                print(f"        {f_msg}")
+        else:
+            passed += 1
+            print(f"  PASS  {fpath.stem}: {desc}")
+
+    print(f"\n{passed} passed, {failed} failed out of {passed + failed}")
+    sys.exit(1 if failed else 0)
 
 
 def _add_common_args(p):
@@ -278,6 +354,11 @@ def main():
     p_batch.add_argument("--out", help="Write JSON results to file")
     _add_common_args(p_batch)
     p_batch.set_defaults(func=cmd_batch)
+
+    # --- selftest ---
+    p_self = sub.add_parser("selftest", help="Run calibration tests")
+    _add_common_args(p_self)
+    p_self.set_defaults(func=cmd_selftest)
 
     args = parser.parse_args()
     args.func(args)

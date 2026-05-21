@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "description": "Matching posts but different preconditions — not equivalent",
+  "expected": {
+    "post_soundness": "proved",
+    "post_completeness": "proved",
+    "pre_soundness": "proved",
+    "pre_completeness": "refuted",
+    "equivalent": false
+  },
+  "function": {
+    "name": "double_val",
+    "return_type": "int",
+    "params": [{"name": "x", "type": "int"}],
+    "local_vars": []
+  },
+  "left": {
+    "label": "reference",
+    "preconditions": ["x > 0"],
+    "postconditions": ["__ret == 2 * x"]
+  },
+  "right": {
+    "label": "candidate",
+    "preconditions": ["x > 0", "x < 100"],
+    "postconditions": ["__ret == 2 * x"]
+  },
+  "helpers": [],
+  "options": {}
+}

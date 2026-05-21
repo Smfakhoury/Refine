@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0",
+  "description": "Identical specs — must be equivalent",
+  "expected": {"equivalent": true},
+  "function": {
+    "name": "gcd",
+    "return_type": "int",
+    "params": [
+      {"name": "a", "type": "int"},
+      {"name": "b", "type": "int"}
+    ],
+    "local_vars": []
+  },
+  "left": {
+    "label": "reference",
+    "preconditions": ["a > 0", "b > 0"],
+    "postconditions": ["__ret >= 1", "__ret <= a", "__ret <= b"]
+  },
+  "right": {
+    "label": "candidate",
+    "preconditions": ["a > 0", "b > 0"],
+    "postconditions": ["__ret >= 1", "__ret <= a", "__ret <= b"]
+  },
+  "helpers": [],
+  "options": {}
+}

@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "description": "Candidate has strictly weaker postcondition — sound but not complete",
+  "expected": {
+    "post_soundness": "proved",
+    "post_completeness": "refuted",
+    "equivalent": false
+  },
+  "function": {
+    "name": "abs_val",
+    "return_type": "int",
+    "params": [{"name": "x", "type": "int"}],
+    "local_vars": []
+  },
+  "left": {
+    "label": "reference",
+    "preconditions": [],
+    "postconditions": ["__ret >= 0", "__ret * __ret == x * x"]
+  },
+  "right": {
+    "label": "candidate",
+    "preconditions": [],
+    "postconditions": ["__ret >= 0"]
+  },
+  "helpers": [],
+  "options": {}
+}
