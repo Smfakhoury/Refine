@@ -1,5 +1,5 @@
 """
-spec_checker — Formal specification comparison via bounded model checking.
+refine — Formal specification comparison via bounded model checking.
 
 Compares two sets of pre/postconditions (left vs right) for the same function
 signature using bounded model checkers (ESBMC or CBMC). Reports precondition

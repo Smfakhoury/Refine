@@ -1,23 +1,23 @@
-"""CLI for spec_checker — compare two specification sets via bounded model checking.
+"""CLI for refine — compare two specification sets via bounded model checking.
 
 Usage:
     # Compare specs from a JSON file (uses ESBMC by default)
-    python -m spec_checker compare specs.json
+    python -m refine compare specs.json
 
     # Compare with options
-    python -m spec_checker compare specs.json --reference left --timeout 120 --emit-harness
+    python -m refine compare specs.json --reference left --timeout 120 --emit-harness
 
     # Use CBMC instead
-    python -m spec_checker compare specs.json --backend cbmc
+    python -m refine compare specs.json --backend cbmc
 
     # Quick inline comparison for simple functions
-    python -m spec_checker quick \\
+    python -m refine quick \\
         --signature "int gcd(int a, int b)" \\
         --left-post "__ret >= 1" \\
         --right-post "__ret >= 1" "__ret <= a" "__ret <= b"
 
     # Batch comparison from a directory of JSON files
-    python -m spec_checker batch specs_dir/ --out results.json
+    python -m refine batch specs_dir/ --out results.json
 
 See README.md for the JSON input schema and full documentation.
 """
@@ -241,10 +241,10 @@ def _add_common_args(p):
 
 def main():
     parser = argparse.ArgumentParser(
-        prog="spec_checker",
+        prog="refine",
         description="Compare two formal specification sets via bounded model checking.",
     )
-    parser.add_argument("--version", action="version", version="spec_checker 0.2.0")
+    parser.add_argument("--version", action="version", version="refine 0.2.0")
 
     sub = parser.add_subparsers(dest="command", required=True)
 

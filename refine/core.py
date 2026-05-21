@@ -1,4 +1,4 @@
-"""Core comparison logic for spec_checker.
+"""Core comparison logic for refine.
 
 Orchestrates harness generation, verifier invocation, and result
 interpretation to compare two specification sets.
@@ -130,7 +130,7 @@ def compare(
         completeness/soundness aliases.
     """
     if work_dir is None:
-        work_dir = Path("/tmp/spec_checker_harnesses") / inp.function.name
+        work_dir = Path("/tmp/refine_harnesses") / inp.function.name
     work_dir.mkdir(parents=True, exist_ok=True)
 
     tag = re.sub(r'\W', '_', inp.function.name)

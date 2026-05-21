@@ -1,4 +1,4 @@
-"""Core data types for spec_checker."""
+"""Core data types for refine."""
 
 from dataclasses import dataclass, field
 from enum import Enum

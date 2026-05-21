@@ -1,4 +1,4 @@
-// spec_checker — Minimal STL stubs for ESBMC bounded model checking.
+// refine — Minimal STL stubs for ESBMC bounded model checking.
 //
 // ESBMC uses a Clang frontend and supports lambdas natively.
 // These stubs provide minimal vector/pair/algorithm support.

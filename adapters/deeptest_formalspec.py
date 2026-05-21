@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Adapter: DeepTest specifications.db + FormalSpecCpp ground truth → spec_checker JSON.
+"""Adapter: DeepTest specifications.db + FormalSpecCpp ground truth → refine JSON.
 
 This adapter bridges DeepTest's spec inference output and FormalSpecCpp's
-REQUIRE/ENSURE ground-truth format into the spec_checker's generic JSON
+REQUIRE/ENSURE ground-truth format into the refine's generic JSON
 input format.
 
 Usage:
@@ -21,8 +21,8 @@ Usage:
         --nospec-dir FormalSpecCpp-Dataset/FormalSpecCPP-NoSpec \\
         --out-dir specs/
 
-    # Then run spec_checker batch on the output
-    python -m spec_checker batch specs/ --out results.json
+    # Then run refine batch on the output
+    python -m refine batch specs/ --out results.json
 """
 
 import argparse
@@ -302,7 +302,7 @@ def extract_local_vars(filepath: str) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# Build spec_checker JSON input
+# Build refine JSON input
 # ---------------------------------------------------------------------------
 
 def build_compare_input(
@@ -311,7 +311,7 @@ def build_compare_input(
     nospec_dir: str,
     db_path: str,
 ) -> dict | None:
-    """Build a spec_checker CompareInput dict for one task.
+    """Build a refine CompareInput dict for one task.
 
     Returns None if required files are missing or no specs found.
     """
@@ -403,7 +403,7 @@ def cmd_batch(args):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Convert DeepTest + FormalSpecCpp specs to spec_checker JSON format",
+        description="Convert DeepTest + FormalSpecCpp specs to refine JSON format",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 

@@ -1,8 +1,8 @@
-# spec_checker
+# refine
 
 **Formal specification comparison via bounded model checking.**
 
-`spec_checker` takes two sets of pre/postconditions for the same function and checks whether they are logically equivalent, or which direction of implication holds. It uses bounded model checkers (ESBMC or CBMC) to verify the implications.
+`refine` takes two sets of pre/postconditions for the same function and checks whether they are logically equivalent, or which direction of implication holds. It uses bounded model checkers (ESBMC or CBMC) to verify the implications.
 
 ## When to use this
 
@@ -23,17 +23,17 @@ No Python dependencies beyond the standard library.
 
 ```bash
 # Compare two specs inline
-python -m spec_checker quick \
+python -m refine quick \
   --signature "int gcd(int a, int b)" \
   --left-pre "a > 0" "b > 0" \
   --left-post "__ret >= 1" "__ret <= a" "__ret <= b" \
   --right-post "__ret >= 1"
 
 # Compare from a JSON file
-python -m spec_checker compare specs.json
+python -m refine compare specs.json
 
 # Batch compare a directory of JSON files
-python -m spec_checker batch specs_dir/ --out results.json
+python -m refine batch specs_dir/ --out results.json
 ```
 
 ## Input format
@@ -118,9 +118,9 @@ Every `proved` result is automatically checked for vacuity: if the assumptions a
 ## CLI reference
 
 ```
-python -m spec_checker compare INPUT.json [options]
-python -m spec_checker quick --signature SIG [options]
-python -m spec_checker batch INPUT_DIR/ [options]
+python -m refine compare INPUT.json [options]
+python -m refine quick --signature SIG [options]
+python -m refine batch INPUT_DIR/ [options]
 
 Options:
   --backend {esbmc,cbmc}     Verifier backend (default: esbmc)
@@ -137,7 +137,7 @@ Options:
 ## Architecture
 
 ```
-spec_checker/
+refine/
 ├── types.py          # Data classes: CompareInput, CompareResult, Verdict, ...
 ├── harness.py        # Harness generation (STL stubs, nondet vars, assume/assert)
 ├── core.py           # Orchestration: prep specs → build harness → run verifier
@@ -166,7 +166,7 @@ Postconditions referencing `old_*` variables (e.g., `old_size`) are automaticall
 
 ## Adapters
 
-The `adapters/` directory contains tool-specific converters that produce `spec_checker` JSON input:
+The `adapters/` directory contains tool-specific converters that produce `refine` JSON input:
 
 - **`deeptest_formalspec.py`** — Extracts specs from a DeepTest specifications database and FormalSpecCpp ground-truth files, producing comparison JSON files.
 

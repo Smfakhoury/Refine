@@ -1,4 +1,4 @@
-// spec_checker — Minimal STL stubs for CBMC bounded model checking.
+// refine — Minimal STL stubs for CBMC bounded model checking.
 //
 // CBMC cannot parse real libc++/libstdc++ headers. These stubs provide
 // just enough type and algorithm support for specification checking.

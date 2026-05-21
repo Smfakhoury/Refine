@@ -289,7 +289,7 @@ def build_implication_harness(
     assume_fn = intrinsics["assume"]
     assert_fn = intrinsics["assert"]
     stubs = _load_stubs(verifier)
-    lines = [f"// spec_checker harness: {func.name} [{harness_label}]"]
+    lines = [f"// refine harness: {func.name} [{harness_label}]"]
     lines.append(stubs)
 
     # Globals for captured variables (CBMC lambda helpers reference these)
