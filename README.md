@@ -149,23 +149,12 @@ Options:
 
 ## Interactive TUI
 
-Launch the terminal UI for a visual, interactive experience:
-
 ```bash
 python -m refine tui              # browse from current directory
 python -m refine tui specs_dir/   # start in a specific directory
 ```
 
-The TUI provides:
-- **File browser** — navigate the filesystem to select JSON spec files or directories
-- **Spec preview** — review function signatures and spec sets before running
-- **Options editor** — configure backend, timeout, bounds, and other settings interactively
-- **Live progress** — animated spinner with phase indicators during verification
-- **Results dashboard** — color-coded verdict table with expandable counterexamples
-- **Batch results** — summary table with progress bar for directory-wide comparisons
-- **JSON export** — save results to file from within the TUI
-
-Keyboard shortcuts: `↑`/`↓` navigate, `Enter` selects, `Esc` goes back, `q` quits from the main menu.
+Interactive terminal UI with file browser, spec preview, options editor, color-coded results, and counterexample viewer. Navigate with `↑`/`↓`, `Enter`, `Esc`, `q`.
 
 ## Example output
 
