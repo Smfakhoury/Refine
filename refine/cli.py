@@ -330,6 +330,12 @@ def cmd_selftest(args):
     sys.exit(1 if failed else 0)
 
 
+def cmd_tui(args):
+    """Launch the interactive terminal UI."""
+    from .tui import run_tui
+    run_tui(start_dir=args.start_dir)
+
+
 def _add_common_args(p):
     """Add common arguments shared across subcommands."""
     p.add_argument("--backend", choices=["esbmc", "cbmc"], default="esbmc",
@@ -398,6 +404,12 @@ def main():
     p_self = sub.add_parser("selftest", help="Run calibration tests")
     _add_common_args(p_self)
     p_self.set_defaults(func=cmd_selftest)
+
+    # --- tui ---
+    p_tui = sub.add_parser("tui", help="Launch interactive terminal UI")
+    p_tui.add_argument("start_dir", nargs="?", default=".",
+                       help="Starting directory for file browser (default: .)")
+    p_tui.set_defaults(func=cmd_tui)
 
     args = parser.parse_args()
     try:
